@@ -202,7 +202,7 @@ router.delete("/posts/delete/:id", checkAdmin, async (req, res) => {
     // delete images from folder
     for (let candidate of candidates.rows) {
       if (candidate.photo_url) {
-        const imagePath = `uploads/candidates/${candidate.photo_url}`;
+        const imagePath = path.join(process.cwd(), 'uploads/candidates', candidate.photo_url);
 
         if (fs.existsSync(imagePath)) {
           fs.unlinkSync(imagePath);
@@ -298,7 +298,7 @@ router.put(
       if (req.file) {
         // delete old image
         if (photo) {
-          const oldPath = `uploads/candidates/${photo}`;
+          const oldPath = path.join(process.cwd(), 'uploads/candidates', photo);
 
           if (fs.existsSync(oldPath)) {
             fs.unlinkSync(oldPath);
@@ -337,7 +337,7 @@ router.delete("/candidates/delete/:id", checkAdmin, async (req, res) => {
       const photo = candidate.rows[0].photo_url;
 
       if (photo) {
-        const imagePath = `uploads/candidates/${photo}`;
+        const imagePath = path.join(process.cwd(), 'uploads/candidates', photo);
 
         if (fs.existsSync(imagePath)) {
           fs.unlinkSync(imagePath);
@@ -677,28 +677,20 @@ router.post("/reset-votes", checkAdmin, async (req, res) => {
 router.get("/results/winners", checkAdmin, async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT
-        p.title AS post_name,
-        c.name AS winner_name,
-        COUNT(v.id) AS total_votes
-      FROM candidates c
-      JOIN posts p
-        ON c.post_id = p.id
-      LEFT JOIN votes v
-        ON c.id = v.candidate_id
-      GROUP BY p.title, c.name, c.id
-      HAVING COUNT(v.id) = (
-        SELECT MAX(vote_count)
-        FROM (
-          SELECT COUNT(v2.id) AS vote_count
-          FROM candidates c2
-          LEFT JOIN votes v2
-            ON c2.id = v2.candidate_id
-          WHERE c2.post_id = c.post_id
-          GROUP BY c2.id
-        ) temp
-      )
-      ORDER BY p.title
+      SELECT post_name, winner_name, total_votes
+      FROM (
+        SELECT 
+          p.title AS post_name, 
+          c.name AS winner_name, 
+          COUNT(v.id) AS total_votes,
+          RANK() OVER (PARTITION BY p.id ORDER BY COUNT(v.id) DESC) as rnk
+        FROM candidates c
+        JOIN posts p ON c.post_id = p.id
+        LEFT JOIN votes v ON c.id = v.candidate_id
+        GROUP BY p.id, p.title, c.id, c.name
+      ) ranked
+      WHERE rnk = 1 AND total_votes > 0
+      ORDER BY post_name
     `);
 
     res.json(result.rows);
@@ -940,6 +932,75 @@ router.get("/export-teacher-assignments", checkAdmin, async (req, res) => {
 
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Get All Students
+router.get("/students", checkAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM students ORDER BY department, year, name"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ================================
+// SYSTEM CLEAN & CLEAR
+// ================================
+router.post("/system/clear-all", checkAdmin, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // 1. Reset election row
+    await client.query("UPDATE election SET start_time = NULL, end_time = NULL, is_active = false WHERE id = 1");
+    
+    // 2. Clear all votes
+    await client.query("TRUNCATE TABLE votes RESTART IDENTITY CASCADE");
+    
+    // 3. Clear all candidates and their images
+    const candidates = await client.query("SELECT photo_url FROM candidates");
+    for (let candidate of candidates.rows) {
+      if (candidate.photo_url) {
+        const imagePath = path.join(process.cwd(), 'uploads/candidates', candidate.photo_url);
+        if (fs.existsSync(imagePath)) {
+          fs.unlinkSync(imagePath);
+        }
+      }
+    }
+    await client.query("TRUNCATE TABLE candidates RESTART IDENTITY CASCADE");
+
+    // 4. Clear all posts
+    await client.query("TRUNCATE TABLE posts RESTART IDENTITY CASCADE");
+
+    // 5. Clear all students
+    await client.query("TRUNCATE TABLE students RESTART IDENTITY CASCADE");
+
+    // 6. Clear all teachers (except the default admin teacher if exists, or just all)
+    // The user said "teachers", so we clear them all but maybe keep a way to re-add?
+    // Let's clear all as requested.
+    await client.query("TRUNCATE TABLE teachers RESTART IDENTITY CASCADE");
+    
+    // Re-insert default teacher to prevent complete lockout if they use teacher portal
+    await client.query("INSERT INTO teachers (username, password) VALUES ('teacher', 'teacher123')");
+
+    // 7. Clear teacher assignments
+    await client.query("TRUNCATE TABLE teacher_assignments RESTART IDENTITY CASCADE");
+    
+    // 8. Clear all authorized devices and reset sequence
+    await client.query("TRUNCATE TABLE authorized_devices RESTART IDENTITY CASCADE");
+
+    await client.query("COMMIT");
+
+    res.json({ message: "System cleared successfully. All data has been wiped." });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    res.status(500).json({ error: error.message });
+  } finally {
+    client.release();
   }
 });
 

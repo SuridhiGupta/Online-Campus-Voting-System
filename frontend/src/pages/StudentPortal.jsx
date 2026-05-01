@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { Fingerprint, AlertOctagon, ArrowLeft, Lock, User as UserIcon, CheckCircle2, ShieldCheck, ArrowRight, Stamp, ShieldAlert, Clock } from 'lucide-react';
-import api from '../utils/api';
+import api, { ROOT_URL } from '../utils/api';
 import logo from '../assets/logo.png';
 import { useNotification } from '../components/NotificationSystem';
 
@@ -259,7 +259,7 @@ export const VoteScreen = () => {
       <div className="bg-white rounded-3xl p-8 lg:p-12 border-t-8 border-[#8A1538] shadow-xl relative overflow-hidden mt-8">
         <div className="relative z-10 text-center mb-10">
           <h4 className="text-[#8A1538] font-bold uppercase tracking-widest text-xs mb-2">Post {currentIndex + 1} of {posts.length}</h4>
-          <h2 className="text-4xl text-slate-800 font-black tracking-tight">{currentPost.post_name}</h2>
+          <h2 className="text-3xl text-slate-800 font-bold tracking-tight">{currentPost.post_name}</h2>
           <p className="text-slate-500 font-medium mt-2">Select your representative for this position.</p>
         </div>
         {error && <div className="bg-red-50 text-red-700 text-center p-4 rounded-xl border border-red-200 font-bold mb-8">{error}</div>}
@@ -279,10 +279,10 @@ export const VoteScreen = () => {
                 </div>
 
                 <div className={`h-40 w-40 mx-auto rounded-full border mb-4 overflow-hidden flex shrink-0 items-center justify-center transition-all ${isSelected ? 'bg-white border-[#8A1538] border-4' : 'bg-slate-100 border-slate-200 group-hover:border-[#8A1538] group-hover:border-4'}`}>
-                  {cand.photo_url ? <img src={`http://localhost:5000/uploads/candidates/${cand.photo_url}`} className="h-full w-full object-cover" /> : <UserIcon size={56} className="text-slate-400 group-hover:text-[#8A1538]" />}
+                  {cand.photo_url ? <img src={`${ROOT_URL}/uploads/candidates/${cand.photo_url}`} className="h-full w-full object-cover" /> : <UserIcon size={56} className="text-slate-400 group-hover:text-[#8A1538]" />}
                 </div>
 
-                <h3 className={`text-2xl font-black tracking-tight transition-colors ${isSelected ? 'text-[#8A1538]' : 'text-slate-800 group-hover:text-[#8A1538]'}`}>{cand.candidate_name}</h3>
+                <h3 className={`text-xl font-bold tracking-tight transition-colors ${isSelected ? 'text-[#8A1538]' : 'text-slate-800 group-hover:text-[#8A1538]'}`}>{cand.candidate_name}</h3>
               </button>
             )
           })}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation, Link, useOutletContext } from 'react-router-dom';
-import { LayoutDashboard, Settings2, Users, FileBarChart, LogOut, ShieldAlert, ArrowLeft, ShieldCheck, Lock, User, AlertCircle, PlayCircle, StopCircle, RefreshCw, AlertTriangle, Download, Trophy, FileText, Plus, PlusCircle, X, Trash2, Image as ImageIcon, Camera, UploadCloud, FileType, CheckCircle, GraduationCap } from 'lucide-react';
-import api from '../utils/api';
+import { LayoutDashboard, Settings2, Users, FileBarChart, LogOut, ShieldAlert, ArrowLeft, ShieldCheck, Lock, User, AlertCircle, PlayCircle, StopCircle, RefreshCw, AlertTriangle, Download, Trophy, FileText, Plus, PlusCircle, X, Trash2, Image as ImageIcon, Camera, UploadCloud, FileType, CheckCircle, GraduationCap, Monitor } from 'lucide-react';
+import api, { ROOT_URL } from '../utils/api';
 import logo from '../assets/logo.png';
 import { useNotification } from '../components/NotificationSystem';
 
@@ -80,6 +80,8 @@ export const AdminLayout = () => {
   const location = useLocation();
   const [electionStatus, setElectionStatus] = useState(null); // stores the full status object
   const [headerStats, setHeaderStats] = useState({ voted: 0, total: 0 });
+  const { showConfirm, showToast } = useNotification();
+  const [isClearing, setIsClearing] = useState(false);
 
   useEffect(() => {
     if (!localStorage.getItem('token')) navigate('/admin/login');
@@ -110,31 +112,78 @@ export const AdminLayout = () => {
     } catch (err) { }
   };
 
+  const handleClearSystem = () => {
+    showConfirm(
+      "Factory Reset System",
+      "This will permanently erase all candidates, students, and voting records. This action cannot be undone.",
+      async () => {
+        try {
+          setIsClearing(true);
+          const res = await api.post('/admin/system/clear-all');
+          showToast(res.data.message, 'success');
+          fetchStatus();
+          fetchHeaderStats();
+          // Redirect to dashboard to refresh all views
+          navigate('/admin/dashboard');
+        } catch (err) {
+          showToast(err.response?.data?.error || "Failed to clear system", 'error');
+        } finally {
+          setIsClearing(false);
+        }
+      },
+      "danger"
+    );
+  };
+
   const menuItems = [
     { label: 'Election Control', icon: <Settings2 size={20} />, path: '/admin/control' },
     { label: 'Candidates Engine', icon: <Users size={20} />, path: '/admin/candidates' },
     { label: 'Teacher Management', icon: <GraduationCap size={20} />, path: '/admin/teachers' },
     { label: 'Student Directory', icon: <FileType size={20} />, path: '/admin/students' },
     { label: 'Result Reports', icon: <FileBarChart size={20} />, path: '/admin/results' },
+    { label: 'Hardware Access', icon: <Monitor size={20} />, path: '/admin/devices' },
   ];
 
   return (
     <div className="min-h-screen bg-[#f8f9fb] flex flex-col md:flex-row">
-      <aside className="w-full md:w-64 bg-white border-r border-slate-200 shadow-sm flex flex-col h-auto md:h-screen sticky top-0">
+      <aside className="w-full md:w-[270px] bg-white border-r border-slate-200 shadow-sm flex flex-col h-auto md:h-screen sticky top-0">
         <Link to="/admin/dashboard" className="p-7 border-b border-slate-100 flex items-center space-x-4 hover:bg-slate-50 transition-colors">
           <img src={logo} alt="Logo" className="h-16 w-auto" onError={(e) => e.target.style.display = 'none'} />
           <div>
             <h2 className="text-[#8A1538] font-black tracking-tight text-2xl leading-tight">DYP-SST</h2>
-            <p className="text-[11px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Admin Base</p>
+            <p className="text-[11px] text-slate-500 font-semibold uppercase tracking-widest mt-0.5">Admin Base</p>
           </div>
         </Link>
         <nav className="flex-grow p-4 space-y-1">
           {menuItems.map((item) => (
-            <Link key={item.path} to={item.path} className={`flex items-center space-x-3 px-4 py-3 rounded-lg font-medium transition-colors ${location.pathname === item.path ? 'bg-[#8A1538]/10 text-[#8A1538] border border-[#8A1538]/20 shadow-sm' : 'text-slate-600 hover:bg-slate-50 border border-transparent'}`}>
-              {item.icon} <span className="text-sm">{item.label}</span>
-            </Link>
+            <button 
+              key={item.path} 
+              onClick={() => navigate(item.path)} 
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg font-medium transition-all duration-200 ${
+                location.pathname === item.path 
+                ? 'bg-[#8A1538] text-white shadow-lg shadow-[#8A1538]/20 border border-[#8A1538]' 
+                : 'text-slate-600 hover:bg-slate-50 border border-transparent hover:border-slate-200'
+              }`}
+            >
+              {item.icon} <span className="text-[14px] font-semibold uppercase tracking-wide whitespace-nowrap">{item.label}</span>
+            </button>
           ))}
         </nav>
+        
+        <div className="p-4 border-t border-slate-100 mt-auto">
+          <button 
+            onClick={handleClearSystem}
+            disabled={isClearing}
+            className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-bold text-red-600 hover:bg-red-50/80 border border-transparent hover:border-red-200 shadow-sm hover:shadow-md transition-all duration-300 group overflow-hidden relative"
+          >
+            <div className={`p-2 rounded-lg bg-red-100 text-red-600 group-hover:bg-red-600 group-hover:text-white transition-all duration-300 ${isClearing ? 'bg-red-50' : 'group-hover:scale-110'}`}>
+              {isClearing ? <RefreshCw size={18} className="animate-spin" /> : <Trash2 size={18} />}
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="text-[14px] uppercase tracking-wide font-semibold whitespace-nowrap">{isClearing ? 'Resetting...' : 'Deep System Reset'}</span>
+            </div>
+          </button>
+        </div>
       </aside>
       <main className="flex-1 flex flex-col h-screen overflow-hidden bg-dashboard-hub transition-colors duration-500">
         <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-8 shadow-[0_2px_10px_-3px_rgba(0,0,0,0.07)] shrink-0 z-10 relative">
@@ -701,7 +750,7 @@ export const ManageCandidates = () => {
                     <tr key={cand.id} className="hover:bg-slate-50/80 transition-all group">
                       <td className="px-8 py-5">
                         <div className="h-12 w-12 rounded-full bg-white overflow-hidden border-2 border-slate-100 shadow-sm flex items-center justify-center group-hover:border-[#8A1538]/30 transition-all">
-                          {cand.photo_url ? <img src={`http://localhost:5000/uploads/candidates/${cand.photo_url}`} className="h-full w-full object-cover" /> : <User size={24} className="text-slate-200" />}
+                          {cand.photo_url ? <img src={`${ROOT_URL}/uploads/candidates/${cand.photo_url}`} className="h-full w-full object-cover" /> : <User size={24} className="text-slate-200" />}
                         </div>
                       </td>
                       <td className="px-8 py-4">
@@ -756,6 +805,7 @@ export const ManageStudents = () => {
   const [uploadStatus, setUploadStatus] = useState('idle'); // 'idle', 'success', 'error'
   const [datasets, setDatasets] = useState([]);
   const [datasetsLoading, setDatasetsLoading] = useState(false);
+  const [message, setMessage] = useState('');
   const { showToast } = useNotification();
 
   const fetchDatasets = async () => {
@@ -879,9 +929,21 @@ export const ManageStudents = () => {
       setCsvFile(null);
       fetchDatasets();
       if (fetchHeaderStats) fetchHeaderStats();
+      
+      // Clear message after 3 seconds
+      setTimeout(() => {
+        setUploadStatus('idle');
+        setMessage('');
+      }, 3000);
     } catch (err) {
       setUploadStatus('error');
       setMessage(err.response?.data?.error || "Import failed. Check CSV format.");
+      
+      // Clear error message after 5 seconds
+      setTimeout(() => {
+        setUploadStatus('idle');
+        setMessage('');
+      }, 5000);
     } finally {
       setIsUploading(false);
     }
@@ -891,8 +953,8 @@ export const ManageStudents = () => {
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       <div className="bg-white rounded-xl shadow-premium border border-slate-200 p-8 text-center">
-        <h2 className="text-3xl font-black text-slate-800 uppercase tracking-tight">Student Directory Import</h2>
-        <p className="text-slate-500 text-sm mt-2 max-w-lg mx-auto italic font-medium">Securely upload verified student datasets designated by Department and Year.</p>
+        <h2 className="text-3xl font-black text-slate-800 uppercase tracking-tight">ADMIN STUDENT DIRECTORY</h2>
+        <p className="text-slate-500 text-sm mt-2 max-w-lg mx-auto italic font-medium">Manage and view the master voter list for all academic departments.</p>
       </div>
 
       <div className="bg-white rounded-xl shadow-premium border border-slate-200 overflow-hidden mb-8">
@@ -1073,7 +1135,7 @@ export const Results = () => {
     try {
       const token = localStorage.getItem('token');
       // Using window.open with token query param for most robust download behavior
-      window.open(`http://localhost:5000/api/admin/results/export?token=${token}`, '_blank');
+      window.open(`${ROOT_URL}/api/admin/results/export?token=${token}`, '_blank');
     } catch (err) {
       showToast("Failed to initiate download.", "error");
     }
@@ -1111,7 +1173,7 @@ export const Results = () => {
         <div className="p-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {winners.map(w => (
-              <div key={w.post_name} className="bg-white p-5 rounded-lg border border-[#DDA73B]/20 text-center shadow-sm relative overflow-hidden">
+              <div key={`${w.post_name}-${w.winner_name}`} className="bg-white p-5 rounded-lg border border-[#DDA73B]/20 text-center shadow-sm relative overflow-hidden">
                 <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">{w.post_name}</h3>
                 <p className="text-xl font-black text-slate-800 mb-3">{w.winner_name}</p>
                 <span className="inline-block bg-yellow-50 text-yellow-700 text-xs font-bold px-3 py-1 rounded-full">{w.total_votes} Votes</span>
@@ -1123,6 +1185,483 @@ export const Results = () => {
       </div>
 
 
+    </div>
+  );
+};
+
+// ==========================================
+// 8. TEACHER MANAGEMENT
+// ==========================================
+export const TeacherManagement = () => {
+  const [teachers, setTeachers] = useState([]);
+  const [assignments, setAssignments] = useState([]);
+  const [assignForm, setAssignForm] = useState({ teacher_id: '', department: '', year: '' });
+  const [createForm, setCreateForm] = useState({ username: '', password: '' });
+  const [isAssigning, setIsAssigning] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const { showToast } = useNotification();
+
+  const departments = [
+    { id: 'AI/DS', name: 'Artificial Intelligence and Data Science (AI/DS)', years: 4 },
+    { id: 'CSE', name: 'Computer Science and Engineering (CSE)', years: 4 },
+    { id: 'BCA', name: 'Bachelor of Computer Applications (BCA)', years: 3 },
+    { id: 'MCA', name: 'Master of Computer Applications (MCA)', years: 3 }
+  ];
+
+  const yearLabels = [
+    { id: 1, name: 'First Year (FE)' },
+    { id: 2, name: 'Second Year (SE)' },
+    { id: 3, name: 'Third Year (TE)' },
+    { id: 4, name: 'Final Year (BE)' }
+  ];
+
+  const getYearLabel = (yearNum) => {
+    const map = { 1: 'FE', 2: 'SE', 3: 'TE', 4: 'BE', '1': 'FE', '2': 'SE', '3': 'TE', '4': 'BE' };
+    return map[yearNum] || yearNum;
+  };
+
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [tRes, aRes] = await Promise.all([
+        api.get('/admin/teachers'),
+        api.get('/admin/teacher-assignments')
+      ]);
+      setTeachers(tRes.data);
+      setAssignments(aRes.data);
+    } catch (err) {
+      console.error("Failed to fetch data", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAssignTeacher = async (e) => {
+    e.preventDefault();
+    if (!assignForm.teacher_id || !assignForm.department || !assignForm.year) {
+      showToast("Please select Teacher, Department and Year.", "error");
+      return;
+    }
+    try {
+      setIsAssigning(true);
+      await api.post('/admin/assign-teacher', assignForm);
+      const aRes = await api.get('/admin/teacher-assignments');
+      setAssignments(aRes.data);
+      setAssignForm({ teacher_id: '', department: '', year: '' });
+      showToast("Teacher class assigned successfully!", "success");
+    } catch (err) {
+      showToast(err.response?.data?.error || "Assignment failed.", "error");
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
+  const handleCreateTeacher = async (e) => {
+    e.preventDefault();
+    if (!createForm.username || !createForm.password) return;
+    try {
+      setIsCreating(true);
+      await api.post('/admin/create-teacher', createForm);
+      fetchData();
+      setCreateForm({ username: '', password: '' });
+      showToast("Teacher account created successfully!", "success");
+    } catch (err) {
+      showToast(err.response?.data?.error || "Creation failed.", "error");
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const downloadAssignments = async () => {
+    try {
+      const res = await api.get('/admin/export-teacher-assignments', { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'teacher_assignments.csv');
+      document.body.appendChild(link);
+      link.click();
+    } catch (err) { showToast("Download failed", "error"); }
+  };
+
+  const handleDeleteTeacher = async (teacherId) => {
+    if (window.confirm("CRITICAL: This will PERMANENTLY delete the teacher's account and all their class mappings. Continue?")) {
+      try {
+        await api.delete(`/admin/delete-teacher/${teacherId}`);
+        fetchData();
+        showToast("Teacher account deleted successfully.", "success");
+      } catch (err) {
+        showToast(err.response?.data?.error || "Failed to delete teacher", "error");
+      }
+    }
+  };
+
+  // Logic to determine available years based on selected department in the form
+  const selectedDeptObjForForm = departments.find(d => d.id === assignForm.department);
+  const availableYears = selectedDeptObjForForm ? yearLabels.slice(0, selectedDeptObjForForm.years) : [];
+
+  if (loading) return <div className="text-center py-20 text-slate-500 font-bold animate-pulse uppercase tracking-widest">Initializing Management Base...</div>;
+
+  return (
+    <div className="relative space-y-8 max-w-5xl mx-auto pb-12 animate-slide-up-fade">
+
+      <div className="bg-white rounded-xl shadow-premium border border-slate-200 p-8 text-center">
+
+        <h2 className="text-3xl font-black text-slate-800 uppercase tracking-tight">Teacher Management</h2>
+        <p className="text-slate-500 text-sm mt-2 max-w-lg mx-auto italic font-medium">Configure faculty authorizations and class assignments with strict 1-to-1 mapping.</p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-8">
+        {/* CARD 0: CREATE TEACHER ACCOUNT */}
+        <div className="bg-white rounded-xl shadow-premium border border-slate-200 overflow-hidden">
+          <div className="bg-[#f8f9fb] border-b border-slate-100 p-6 font-semibold text-slate-700 flex items-center space-x-2">
+            <Users size={20} className="text-[#8A1538]" />
+            <span>Create Teacher Account</span>
+          </div>
+          <div className="p-8">
+            <form onSubmit={handleCreateTeacher} className="max-w-3xl mx-auto space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Username</label>
+                  <input 
+                    type="text" 
+                    value={createForm.username}
+                    onChange={e => setCreateForm({...createForm, username: e.target.value})}
+                    placeholder="Enter teacher username"
+                    className="w-full border border-slate-300 p-2.5 rounded-md outline-none focus:ring-2 focus:ring-[#8A1538]/20 focus:border-[#8A1538] text-sm transition-all"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Password</label>
+                  <input 
+                    type="password" 
+                    value={createForm.password}
+                    onChange={e => setCreateForm({...createForm, password: e.target.value})}
+                    placeholder="Set manual password"
+                    className="w-full border border-slate-300 p-2.5 rounded-md outline-none focus:ring-2 focus:ring-[#8A1538]/20 focus:border-[#8A1538] text-sm transition-all"
+                    required
+                  />
+                </div>
+              </div>
+              <div className="flex justify-center">
+                <button 
+                  type="submit" 
+                  disabled={isCreating}
+                  className="w-full max-w-sm bg-slate-800 hover:bg-slate-900 text-white font-bold py-4 rounded-xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center space-x-3 uppercase tracking-widest text-xs"
+                >
+                  <span>{isCreating ? "Creating..." : "Create Teacher Account"}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        {/* CARD 1: ASSIGN TEACHER CLASS */}
+        <div className="bg-white rounded-xl shadow-premium border border-slate-200 overflow-hidden">
+          <div className="bg-[#f8f9fb] border-b border-slate-100 p-6 font-semibold text-slate-700 flex items-center space-x-2">
+            <GraduationCap size={20} className="text-[#8A1538]" />
+            <span>Assign Teacher Class</span>
+          </div>
+          <div className="p-8">
+            <form onSubmit={handleAssignTeacher} className="max-w-3xl mx-auto space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Select Teacher</label>
+                  <select 
+                    value={assignForm.teacher_id} 
+                    onChange={e => setAssignForm({...assignForm, teacher_id: e.target.value})}
+                    className="w-full border border-slate-300 p-2.5 rounded-md outline-none focus:ring-2 focus:ring-[#8A1538]/20 focus:border-[#8A1538] text-sm transition-all" 
+                    required
+                  >
+                    <option value="" disabled hidden>Select Teacher...</option>
+                    {teachers.map(t => (
+                      <option key={t.id} value={t.id}>{t.username}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Department</label>
+                  <select 
+                    value={assignForm.department} 
+                    onChange={e => setAssignForm({...assignForm, department: e.target.value})}
+                    className="w-full border border-slate-300 p-2.5 rounded-md outline-none focus:ring-2 focus:ring-[#8A1538]/20 focus:border-[#8A1538] text-sm transition-all" 
+                    required
+                  >
+                    <option value="" disabled hidden>Select Department...</option>
+                    {departments.map(dept => (
+                      <option key={dept.id} value={dept.id}>{dept.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Year</label>
+                  <select 
+                    value={assignForm.year} 
+                    onChange={e => setAssignForm({...assignForm, year: e.target.value})}
+                    disabled={!assignForm.department}
+                    className={`w-full border border-slate-300 p-2.5 rounded-md outline-none focus:ring-2 focus:ring-[#8A1538]/20 focus:border-[#8A1538] text-sm transition-all ${!assignForm.department ? 'bg-slate-50 opacity-50 cursor-not-allowed' : ''}`}
+                    required
+                  >
+                    <option value="" disabled hidden>{assignForm.department ? 'Select Year...' : 'Select Dept First...'}</option>
+                    {availableYears.map(y => (
+                      <option key={y.id} value={y.id}>{y.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="flex justify-center pt-2">
+                <button 
+                  type="submit" 
+                  disabled={isAssigning}
+                  className="w-full max-w-sm bg-[#8A1538] hover:bg-[#6D0F2A] text-white font-black py-4 rounded-xl shadow-lg shadow-[#8A1538]/20 transition-all duration-300 active:scale-[0.98] flex items-center justify-center space-x-3 uppercase tracking-widest text-xs"
+                >
+                  <CheckCircle size={18} />
+                  <span>{isAssigning ? "Assigning..." : "Confirm Assignment"}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        {/* CARD 2: CURRENT ASSIGNMENTS */}
+        <div className="bg-white rounded-xl shadow-premium border border-slate-200 overflow-hidden">
+          <div className="bg-[#f8f9fb] border-b border-slate-100 p-6 font-semibold text-slate-700 flex items-center space-x-2">
+            <Users size={20} className="text-[#8A1538]" />
+            <span>Active Assignments Registry</span>
+          </div>
+          <div className="flex justify-end px-8 pt-4">
+            <button onClick={downloadAssignments} className="flex items-center space-x-2 text-xs font-bold text-[#8A1538] hover:bg-[#8A1538]/5 px-4 py-2 rounded-lg border border-[#8A1538]/20 transition-all">
+              <Download size={14} />
+              <span>Export Assignments</span>
+            </button>
+          </div>
+          <div className="p-8">
+            {assignments.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                <AlertCircle size={48} className="mb-4 opacity-20" />
+                <p className="text-sm font-medium italic">No active teacher assignments detected in the database.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {assignments.map((asgn) => (
+                  <div key={asgn.teacher_id} className="bg-slate-50 border border-slate-200 rounded-xl p-5 flex flex-col relative group hover:border-[#8A1538]/30 transition-all hover:shadow-lg hover:shadow-slate-200/50">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="h-10 w-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-[#8A1538] font-black text-sm shadow-sm group-hover:bg-[#8A1538] group-hover:text-white group-hover:border-[#8A1538] transition-all">
+                        {asgn.teacher_name?.charAt(0).toUpperCase()}
+                      </div>
+                      <button 
+                        onClick={() => handleDeleteTeacher(asgn.teacher_id)}
+                        className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                        title="Delete Teacher Account"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                    <div>
+                      <h4 className="font-black text-slate-800 text-lg tracking-tight leading-tight mb-1">{asgn.teacher_name}</h4>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{asgn.department}</p>
+                      <div className="mt-4 flex flex-col space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <span className="bg-[#8A1538]/10 text-[#8A1538] px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-[#8A1538]/10">
+                            {getYearLabel(asgn.year)}
+                          </span>
+                          {parseInt(asgn.student_count) > 0 ? (
+                            <div className="flex items-center space-x-1.5 transition-all">
+                              <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Dataset Synced</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center space-x-1.5 text-amber-500 animate-slide-up-fade">
+                              <AlertCircle size={10} className="shrink-0" />
+                              <span className="text-[9px] font-black uppercase tracking-widest">Incomplete Link</span>
+                            </div>
+                          )}
+                        </div>
+                        {parseInt(asgn.student_count) === 0 && (
+                          <div className="bg-amber-50 border border-amber-100 rounded-md p-2 flex items-start space-x-2 animate-slide-up-fade">
+                            <ShieldAlert size={12} className="text-amber-600 mt-0.5 shrink-0" />
+                            <p className="text-[10px] font-bold text-amber-700 leading-tight">Assigned but no dataset uploaded</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// 9. HARDWARE ACCESS CONTROL
+// ==========================================
+export const ManageDevices = () => {
+  const [devices, setDevices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const { showToast } = useNotification();
+
+  const fetchDevices = async () => {
+    try {
+      const res = await api.get('/admin/devices/list');
+      setDevices(res.data);
+    } catch (err) {
+      console.error("Failed to fetch devices", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDevices();
+    const interval = setInterval(fetchDevices, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleApprove = async (id, role) => {
+    try {
+      await api.post('/admin/devices/approve', { deviceId: id, role });
+      showToast(`Device approved as ${role}`, 'success');
+      fetchDevices();
+    } catch (err) {
+      showToast('Approval failed', 'error');
+    }
+  };
+
+  const handleRemove = async (id) => {
+    if (!window.confirm("Are you sure you want to revoke access for this device? It will be disconnected immediately.")) return;
+    
+    try {
+      await api.delete(`/admin/devices/${id}`);
+      showToast('Device access revoked', 'success');
+      fetchDevices();
+    } catch (err) {
+      showToast('Failed to remove device', 'error');
+    }
+  };
+
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center p-20 space-y-4">
+      <RefreshCw className="animate-spin text-slate-300" size={40} />
+      <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Loading Hardware Grid...</p>
+    </div>
+  );
+
+  return (
+    <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-500">
+      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8 flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-black text-slate-800 tracking-tight">HARDWARE ACCESS CONTROL</h2>
+          <p className="text-slate-500 font-medium">Manage physical devices authorized to access the voting network.</p>
+        </div>
+        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+          <Monitor className="text-slate-400" size={32} />
+        </div>
+      </div>
+
+      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+        <table className="w-full text-left">
+          <thead className="bg-slate-50/50 border-b border-slate-100">
+            <tr>
+              <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Device No</th>
+              <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">System Info</th>
+              <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Assigned Role</th>
+              <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Network Status</th>
+              <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Security Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {devices.length === 0 ? (
+              <tr>
+                <td colSpan="5" className="p-20 text-center text-slate-400 font-medium">No devices detected on the network yet.</td>
+              </tr>
+            ) : (
+              devices.map(device => (
+                <tr key={device.fingerprint} className="hover:bg-slate-50/30 transition-colors">
+                  <td className="p-6">
+                    <div className="font-mono text-base font-black text-[#8A1538] bg-red-50 px-4 py-1 rounded-lg border border-red-100 inline-block">
+                      {device.device_no}
+                    </div>
+                  </td>
+                  <td className="p-6 font-semibold text-slate-600 truncate max-w-[200px]">
+                    {device.device_name}
+                  </td>
+                  <td className="p-6">
+                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                      device.role === 'admin' ? 'bg-[#8A1538] text-white' : 'bg-blue-600 text-white'
+                    }`}>
+                      {device.role}
+                    </span>
+                  </td>
+                  <td className="p-6">
+                    {device.is_approved ? (
+                      <span className="inline-flex items-center text-emerald-600 font-bold text-xs bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
+                        <CheckCircle size={14} className="mr-2" /> Authorized
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center text-amber-500 font-bold text-xs bg-amber-50 px-3 py-1 rounded-full border border-amber-100">
+                        <ShieldAlert size={14} className="mr-2" /> Pending
+                      </span>
+                    )}
+                  </td>
+                  <td className="p-6">
+                    <div className="flex justify-end items-center space-x-2">
+                      {!device.is_approved ? (
+                        <>
+                          <button 
+                            onClick={() => handleApprove(device.fingerprint, 'student')} 
+                            className="bg-slate-900 text-white px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-black transition-all active:scale-95"
+                          >
+                            Approve Student
+                          </button>
+                          <button 
+                            onClick={() => handleApprove(device.fingerprint, 'admin')} 
+                            className="bg-[#8A1538] text-white px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-[#6D0F2A] transition-all active:scale-95"
+                          >
+                            Approve Admin
+                          </button>
+                        </>
+                      ) : (
+                        <span className="text-slate-300 text-[10px] font-black uppercase tracking-widest italic pr-4">Encrypted Connection</span>
+                      )}
+                      
+                      {device.role !== 'admin' && (
+                        <button 
+                          onClick={() => handleRemove(device.fingerprint)}
+                          className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                          title="Revoke Access"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+      
+      <div className="bg-amber-50 border border-amber-100 rounded-2xl p-6 flex items-start space-x-4">
+        <ShieldAlert className="text-amber-500 mt-1" size={20} />
+        <div>
+          <h4 className="text-amber-800 font-bold text-sm uppercase tracking-tight">Security Protocol Tip</h4>
+          <p className="text-amber-700/80 text-xs font-medium leading-relaxed mt-1">
+            Always verify the Device ID shown on the student's screen before approving. This prevents unauthorized personal devices from entering the election pool.
+          </p>
+        </div>
+      </div>
     </div>
   );
 };

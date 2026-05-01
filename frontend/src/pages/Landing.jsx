@@ -2,9 +2,11 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, GraduationCap, Users } from 'lucide-react';
 import logo from '../assets/logo.png';
+import { DeviceRoleContext } from '../App';
 
 const Landing = () => {
   const navigate = useNavigate();
+  const role = React.useContext(DeviceRoleContext);
 
   const portals = [
     {
@@ -12,23 +14,26 @@ const Landing = () => {
       title: 'Student Voting',
       description: 'Cast your vote for student representatives and shape campus leadership.',
       icon: <GraduationCap size={40} className="text-[#8A1538]" />,
-      path: '/student/login'
+      path: '/student/login',
+      allowedFor: ['student']
     },
     {
       id: 'teacher',
       title: 'Faculty Dashboard',
       description: 'View class-wise turnout, voting progress, and pending student participation.',
       icon: <Users size={40} className="text-[#DDA73B]" />,
-      path: '/teacher/login'
+      path: '/teacher/login',
+      allowedFor: ['admin'] // Only admin PC can see/manage faculty
     },
     {
       id: 'admin',
       title: 'Admin Panel',
       description: 'Manage elections, candidates, results, and overall voting operations.',
       icon: <ShieldCheck size={40} className="text-slate-600" />,
-      path: '/admin/login'
+      path: '/admin/login',
+      allowedFor: ['admin']
     }
-  ];
+  ].filter(portal => portal.allowedFor.includes(role));
 
   return (
     <div className="min-h-screen bg-dashboard-hub flex flex-col font-sans selection:bg-[#8A1538] selection:text-white">
@@ -81,7 +86,11 @@ const Landing = () => {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className={`grid grid-cols-1 ${
+            portals.length === 3 ? 'md:grid-cols-3' : 
+            portals.length === 2 ? 'md:grid-cols-2 max-w-3xl' : 
+            'md:grid-cols-1 max-w-md'
+          } mx-auto gap-8`}>
             {portals.map((portal) => (
               <button
                 key={portal.id}
