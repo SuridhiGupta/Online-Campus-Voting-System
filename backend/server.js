@@ -2,7 +2,22 @@ const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const os = require("os");
+const fs = require("fs");
 const app = express();
+
+// Ensure upload directories exist
+const uploadDirs = [
+  path.join(__dirname, "uploads"),
+  path.join(__dirname, "uploads/candidates"),
+  path.join(__dirname, "uploads/students")
+];
+
+uploadDirs.forEach(dir => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+    console.log(`📁 Created directory: ${dir}`);
+  }
+});
 
 // --- 1. INITIALIZE LAN IP DETECTION (Must be at top) ---
 const getLocalIP = () => {
