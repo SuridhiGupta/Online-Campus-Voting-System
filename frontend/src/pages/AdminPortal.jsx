@@ -116,7 +116,7 @@ export const AdminLayout = () => {
   const handleClearSystem = () => {
     showConfirm(
       "DEEP SYSTEM RESET",
-      "This will permanently erase ALL data: candidates, students, teachers, and voting records. This action cannot be reversed.",
+      <span>This will <strong>permanently erase ALL data</strong>: candidates, students, teachers, and voting records.<br/><br/><strong className="text-red-600">This action cannot be reversed.</strong></span>,
       async (password) => {
         try {
           setIsClearing(true);
