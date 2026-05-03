@@ -52,6 +52,7 @@ CREATE TABLE admins (
     id SERIAL PRIMARY KEY,
     username VARCHAR(100) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
+    reset_password VARCHAR(255) DEFAULT 'DeepReset',
     role VARCHAR(20) DEFAULT 'admin'
 );
 
@@ -80,7 +81,7 @@ CREATE TABLE authorized_devices (
 
 -- 3. INITIAL MASTER DATA
 -- Default Admin
-INSERT INTO admins (username, password) VALUES ('admin', 'admin123');
+INSERT INTO admins (username, password, reset_password) VALUES ('admin', 'admin123', 'DeepReset');
 
 -- Initial Election State
 INSERT INTO election (is_active) VALUES (false);

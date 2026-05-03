@@ -82,6 +82,7 @@ export const AdminLayout = () => {
   const [headerStats, setHeaderStats] = useState({ voted: 0, total: 0 });
   const { showConfirm, showToast } = useNotification();
   const [isClearing, setIsClearing] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
 
   useEffect(() => {
     if (!localStorage.getItem('token')) navigate('/admin/login');
@@ -114,24 +115,30 @@ export const AdminLayout = () => {
 
   const handleClearSystem = () => {
     showConfirm(
-      "Factory Reset System",
-      "This will permanently erase all candidates, students, and voting records. This action cannot be undone.",
-      async () => {
+      "DEEP SYSTEM RESET",
+      "This will permanently erase ALL data: candidates, students, teachers, and voting records. This action cannot be reversed.",
+      async (password) => {
         try {
           setIsClearing(true);
-          const res = await api.post('/admin/system/clear-all');
-          showToast(res.data.message, 'success');
+          const res = await api.post('/admin/system/clear-all', { password });
+          setResetSuccess(true);
           fetchStatus();
           fetchHeaderStats();
-          // Redirect to dashboard to refresh all views
-          navigate('/admin/dashboard');
+          setTimeout(() => {
+            setResetSuccess(false);
+            navigate('/admin/dashboard');
+          }, 4000);
         } catch (err) {
+          if (err.response?.status === 401) {
+            throw new Error(err.response.data.error || "Incorrect authorization password");
+          }
           showToast(err.response?.data?.error || "Failed to clear system", 'error');
         } finally {
           setIsClearing(false);
         }
       },
-      "danger"
+      "danger",
+      true
     );
   };
 
@@ -145,7 +152,40 @@ export const AdminLayout = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-[#f8f9fb] flex flex-col md:flex-row">
+    <div className="min-h-screen bg-[#f8f9fb] flex flex-col md:flex-row relative overflow-hidden">
+      {resetSuccess && (
+        <div className="fixed inset-0 z-[99999] bg-white flex flex-col items-center justify-center overflow-hidden">
+          {/* Animated scanning background */}
+          <div className="absolute inset-0 pointer-events-none opacity-40 overflow-hidden">
+             <div className="h-[120%] -mt-[10%] w-[50%] bg-gradient-to-r from-transparent via-emerald-900 to-transparent" style={{ animation: 'scanBg 4s infinite linear' }}></div>
+          </div>
+          <style>{`
+            @keyframes scanBg {
+              0% { transform: translateX(-150vw) skewX(-25deg); }
+              100% { transform: translateX(150vw) skewX(-25deg); }
+            }
+          `}</style>
+          
+          <div className="relative z-10 flex flex-col items-center animate-scale-in">
+            <div className="h-20 w-20 rounded-full border-2 border-emerald-600/30 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(5,150,105,0.15)] bg-white">
+              <CheckCircle size={40} className="text-emerald-600" />
+            </div>
+            <div className="text-[10px] font-black text-emerald-700 uppercase tracking-[0.3em] mb-2">System Status: Updated</div>
+            <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight mb-4 text-center">Deep System Reset Successful</h1>
+            <p className="text-sm font-bold text-slate-500 animate-pulse uppercase tracking-wider mb-6">Re-initializing environment...</p>
+            
+            <div className="flex items-center space-x-3 bg-emerald-50/80 border border-emerald-100 rounded-full px-5 py-2.5 shadow-sm mt-2">
+              <div className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              </div>
+              <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-widest">
+                System 100% Secure & Ready
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
       <aside className="w-full md:w-[270px] bg-white border-r border-slate-200 shadow-sm flex flex-col h-auto md:h-screen sticky top-0">
         <Link to="/admin/dashboard" className="p-7 border-b border-slate-100 flex items-center space-x-4 hover:bg-slate-50 transition-colors">
           <img src={logo} alt="Logo" className="h-16 w-auto" onError={(e) => e.target.style.display = 'none'} />

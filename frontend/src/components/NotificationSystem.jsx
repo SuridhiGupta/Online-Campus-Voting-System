@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { CheckCircle, AlertCircle, AlertTriangle, Info, X, ShieldAlert } from 'lucide-react';
+import { CheckCircle, AlertCircle, AlertTriangle, Info, X, ShieldAlert, Lock } from 'lucide-react';
 
 const NotificationContext = createContext();
 
@@ -8,6 +8,8 @@ export const useNotification = () => useContext(NotificationContext);
 export const NotificationProvider = ({ children }) => {
   const [toast, setToast] = useState(null);
   const [confirm, setConfirm] = useState(null);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState('');
 
   const showToast = useCallback((message, type = 'success', duration = 4000) => {
     setToast({ message, type });
@@ -16,17 +18,37 @@ export const NotificationProvider = ({ children }) => {
     }, duration);
   }, []);
 
-  const showConfirm = useCallback((title, message, onConfirm, type = 'warning') => {
-    setConfirm({ title, message, onConfirm, type });
+  const showConfirm = useCallback((title, message, onConfirm, type = 'warning', requirePassword = null) => {
+    setConfirm({ title, message, onConfirm, type, requirePassword });
+    setPasswordInput('');
+    setPasswordError('');
   }, []);
 
-  const handleConfirm = () => {
-    if (confirm?.onConfirm) confirm.onConfirm();
-    setConfirm(null);
+  const handleConfirm = async () => {
+    if (confirm?.requirePassword && !passwordInput) {
+      setPasswordError('Authorization password is required');
+      return;
+    }
+    if (confirm?.onConfirm) {
+      try {
+        await confirm.onConfirm(passwordInput);
+        setConfirm(null);
+        setPasswordInput('');
+        setPasswordError('');
+      } catch (err) {
+        setPasswordError(err.message);
+      }
+    } else {
+      setConfirm(null);
+      setPasswordInput('');
+      setPasswordError('');
+    }
   };
 
   const handleCancel = () => {
     setConfirm(null);
+    setPasswordInput('');
+    setPasswordError('');
   };
 
   return (
@@ -105,9 +127,33 @@ export const NotificationProvider = ({ children }) => {
                 </div>
               </div>
               
-              <p className="text-slate-600 font-medium leading-relaxed mb-8">
+              <p className={`text-slate-600 font-medium leading-relaxed ${confirm.requirePassword ? 'mb-5' : 'mb-8'}`}>
                 {confirm.message}
               </p>
+              
+              {confirm.requirePassword && (
+                <div className="mb-8 animate-fade-in text-left">
+                  <label className="block text-[11px] font-bold text-slate-500 mb-2 uppercase tracking-widest">Authorization Password</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Lock size={16} className="text-slate-400" />
+                    </div>
+                    <input 
+                      type="password" 
+                      value={passwordInput}
+                      onChange={(e) => {
+                        setPasswordInput(e.target.value);
+                        if (passwordError) setPasswordError('');
+                      }}
+                      className={`w-full pl-10 pr-3 py-3 border ${passwordError ? 'border-red-300 focus:ring-red-500/20' : 'border-slate-300 focus:ring-[#8A1538]/20 focus:border-[#8A1538]'} rounded-xl text-sm outline-none focus:ring-2 transition-all font-medium`}
+                      placeholder="Enter password to confirm"
+                    />
+                  </div>
+                  {passwordError && (
+                    <p className="text-red-500 text-xs font-bold mt-2 flex items-center"><AlertCircle size={12} className="mr-1" /> {passwordError}</p>
+                  )}
+                </div>
+              )}
               
               <div className="flex space-x-3">
                 <button 

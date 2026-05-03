@@ -951,8 +951,21 @@ router.get("/students", checkAdmin, async (req, res) => {
 // SYSTEM CLEAN & CLEAR
 // ================================
 router.post("/system/clear-all", checkAdmin, async (req, res) => {
+  const { password } = req.body;
+  
+  if (!password) {
+    return res.status(400).json({ error: "Authorization password is required" });
+  }
+
   const client = await pool.connect();
   try {
+    const adminCheck = await client.query("SELECT reset_password FROM admins WHERE id = $1", [req.admin.admin_id]);
+    
+    if (adminCheck.rows.length === 0 || adminCheck.rows[0].reset_password !== password) {
+      client.release();
+      return res.status(401).json({ error: "Incorrect authorization password" });
+    }
+
     await client.query("BEGIN");
 
     // 1. Reset election row
