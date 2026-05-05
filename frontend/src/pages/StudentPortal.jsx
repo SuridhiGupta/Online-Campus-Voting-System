@@ -1,9 +1,200 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { Fingerprint, AlertOctagon, ArrowLeft, Lock, User as UserIcon, CheckCircle2, ShieldCheck, ArrowRight, Stamp, ShieldAlert, Clock } from 'lucide-react';
 import api, { ROOT_URL } from '../utils/api';
 import logo from '../assets/logo.png';
 import { useNotification } from '../components/NotificationSystem';
+
+
+// --- EXAM MODE SECURITY SYSTEM ---
+const useExamMode = (isEnforced) => {
+  const navigate = useNavigate();
+  const [warning, setWarning] = useState(null);
+  const [isMultiTab, setIsMultiTab] = useState(false);
+  const [isIdle, setIsIdle] = useState(false);
+  const idleTimer = useRef(null);
+
+  const enterFS = useCallback(() => {
+    if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    }
+  }, []);
+
+  const triggerWarning = useCallback((msg) => {
+    if (warning) return;
+    setWarning(msg);
+
+    // AUTO-FORCE FULLSCREEN ON ANY VIOLATION
+    setTimeout(() => {
+      if (!document.fullscreenElement) enterFS();
+    }, 300);
+
+    setTimeout(() => setWarning(null), 1500);
+  }, [warning, enterFS]);
+
+  const resetIdleTimer = useCallback(() => {
+    setIsIdle(false);
+    if (idleTimer.current) clearTimeout(idleTimer.current);
+    idleTimer.current = setTimeout(() => {
+      if (isEnforced && !sessionStorage.getItem('votingFinished')) {
+        setIsIdle(true);
+      }
+    }, 180000); // 3 Minutes
+  }, [isEnforced]);
+
+  useEffect(() => {
+    if (!isEnforced || sessionStorage.getItem('votingFinished')) return;
+
+    // A. Multi-Tab Protection via BroadcastChannel (Bulletproof Handshake)
+    const bc = new BroadcastChannel('exam_mode_lock');
+    const isNewcomer = { current: true };
+    
+    // Only newcomers send a PING to see if someone is already there
+    setTimeout(() => {
+      if (!sessionStorage.getItem('votingFinished')) {
+        bc.postMessage({ type: 'PING' });
+      }
+      // After a short window, we are no longer a newcomer
+      setTimeout(() => { isNewcomer.current = false; }, 1000);
+    }, Math.floor(Math.random() * 200));
+
+    bc.onmessage = (e) => {
+      if (e.data.type === 'PING') {
+        // We reply to PINGS to let newcomers know we are here
+        bc.postMessage({ type: 'PONG' });
+      } else if (e.data.type === 'PONG') {
+        // ONLY the newcomer tab blocks itself if it receives a PONG
+        if (isNewcomer.current && !sessionStorage.getItem('votingFinished')) {
+          setIsMultiTab(true);
+        }
+      }
+    };
+
+    const handleUnload = () => {
+      // BroadcastChannel closes automatically on tab close, no manual storage removal needed
+    };
+
+    const handleContextMenu = (e) => {
+      e.preventDefault();
+      triggerWarning("Right-Click Disabled");
+    };
+
+    const handleKeyDown = (e) => {
+      resetIdleTimer();
+      const forbiddenKeys = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12'];
+      const isDevTools = (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) || (e.ctrlKey && e.key === 'U');
+      const isReload = (e.ctrlKey && e.key === 'r') || (e.metaKey && e.key === 'r');
+      
+      if (forbiddenKeys.includes(e.key) || isDevTools || isReload) {
+        e.preventDefault();
+        triggerWarning("Unauthorized Action");
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        triggerWarning("Tab switch detected");
+      }
+    };
+
+    const handleFSChange = () => {
+      // Only warn if the browser is NOT in fullscreen AND the warning isn't already showing
+      // This prevents the infinite loop if a browser hard-rejects the request
+      if (!document.fullscreenElement && !warning) {
+        triggerWarning("Fullscreen Required");
+      }
+    };
+
+    enterFS();
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('mousemove', resetIdleTimer);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('fullscreenchange', handleFSChange);
+    document.addEventListener('click', enterFS);
+
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('mousemove', resetIdleTimer);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('fullscreenchange', handleFSChange);
+      document.removeEventListener('click', enterFS);
+      bc.close();
+      window.removeEventListener('beforeunload', handleUnload);
+    };
+  }, [isEnforced, enterFS, resetIdleTimer, triggerWarning]);
+
+  return { warning, isMultiTab, isIdle };
+};
+
+// --- SECURITY OVERLAYS ---
+const ExamWarningOverlay = ({ message }) => (
+  <div className="fixed inset-0 z-[999999] flex items-center justify-center pointer-events-none select-none">
+    <style>{`
+      @keyframes blinkWarning {
+        0%, 100% { background-color: #ef4444; }
+        50% { background-color: #f59e0b; }
+      }
+    `}</style>
+    <div className="w-full h-full absolute inset-0 opacity-90" style={{ animation: 'blinkWarning 0.4s infinite' }}></div>
+    <div className="relative bg-white text-red-600 px-12 py-10 rounded-[3rem] shadow-2xl border-8 border-red-600 flex flex-col items-center animate-scale-in">
+      <AlertOctagon size={100} className="mb-6 text-red-600" />
+      <h2 className="text-5xl font-black uppercase tracking-tighter mb-2">SECURITY ALERT</h2>
+      <p className="text-2xl font-black uppercase tracking-widest text-slate-800">{message}</p>
+    </div>
+  </div>
+);
+
+const MultiTabOverlay = () => (
+  <div className="fixed inset-0 z-[999999] bg-slate-900/98 backdrop-blur-3xl flex flex-col items-center justify-center p-8 text-center select-none">
+    <div className="bg-[#8A1538] p-8 rounded-full mb-8 shadow-[0_0_80px_rgba(138,21,56,0.5)]">
+      <Lock size={100} className="text-white" />
+    </div>
+    <h1 className="text-6xl font-black text-white mb-6 uppercase tracking-tighter">Multiple Sessions Detected</h1>
+    <p className="text-slate-400 text-2xl max-w-2xl font-medium leading-relaxed mb-12">
+      You can only have one active voting terminal open. Please close all other tabs and <strong className="text-white">Refresh</strong> this page.
+    </p>
+    <button onClick={() => window.location.reload()} className="bg-[#8A1538] text-white px-12 py-4 rounded-2xl font-black uppercase tracking-widest hover:scale-105 transition-transform shadow-xl">
+      Fix Session & Sync
+    </button>
+  </div>
+);
+
+const IdleOverlay = () => (
+  <div className="fixed inset-0 z-[999999] bg-[#8A1538]/95 backdrop-blur-xl flex flex-col items-center justify-center p-8 text-center select-none">
+    <Clock size={120} className="text-white mb-8 animate-pulse" />
+    <h1 className="text-6xl font-black text-white mb-4 uppercase tracking-tighter">Session Paused</h1>
+    <p className="text-white text-2xl font-bold max-w-lg mb-12 opacity-80">
+      The system has detected inactivity. Please move your mouse or press any key to resume voting.
+    </p>
+    <div className="px-10 py-4 bg-white/10 rounded-full border border-white/20 text-white font-black uppercase tracking-[0.3em] text-sm">
+      Monitoring Activity...
+    </div>
+  </div>
+);
+
+const SecureConfirmModal = ({ message, onConfirm, onCancel }) => (
+  <div className="fixed inset-0 z-[999999] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4">
+    <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 border-t-8 border-[#8A1538] shadow-2xl animate-scale-in">
+      <div className="bg-red-50 w-20 h-20 rounded-full flex items-center justify-center mb-6 mx-auto">
+        <Stamp size={40} className="text-[#8A1538]" />
+      </div>
+      <h2 className="text-2xl font-black text-slate-800 text-center mb-4 uppercase tracking-tight">Final Confirmation</h2>
+      <p className="text-slate-600 text-center font-bold mb-10 leading-relaxed italic">
+        "{message}"
+      </p>
+      <div className="grid grid-cols-2 gap-4">
+        <button onClick={onCancel} className="py-4 rounded-2xl font-black uppercase text-xs tracking-widest text-slate-400 border border-slate-200 hover:bg-slate-50 transition-colors">
+          Go Back
+        </button>
+        <button onClick={onConfirm} className="py-4 rounded-2xl font-black uppercase text-xs tracking-widest text-white bg-[#8A1538] shadow-lg hover:bg-[#6D0F2A] transition-colors">
+          Confirm Selection
+        </button>
+      </div>
+    </div>
+  </div>
+);
 
 // ==========================================
 // 1. STUDENT LOGIN PORTAL
@@ -14,6 +205,7 @@ export const StudentLogin = () => {
   const [loading, setLoading] = useState(false);
   const [electionStatus, setElectionStatus] = useState(null); // stores { status, message, end_time, start_time }
   const navigate = useNavigate();
+  const { warning, isMultiTab, isIdle } = useExamMode(true);
 
   useEffect(() => {
     const checkStatus = async () => {
@@ -56,10 +248,10 @@ export const StudentLogin = () => {
       <div className="min-h-screen bg-dashboard-hub flex flex-col items-center justify-center p-4">
         <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl flex flex-col items-center p-12 text-center border-t-8 border-slate-800">
           <div className="mb-6 bg-slate-50 p-6 rounded-full border border-slate-100">
-            {isStopped ? <ShieldAlert size={64} className="text-amber-500 animate-pulse-soft" /> : 
-             isEnded ? <ShieldCheck size={64} className="text-emerald-500" /> :
-             isNotStarted ? <Clock size={64} className="text-blue-500 animate-pulse-soft" /> :
-             <AlertOctagon size={64} className="text-[#8A1538]" />}
+            {isStopped ? <ShieldAlert size={64} className="text-amber-500 animate-pulse-soft" /> :
+              isEnded ? <ShieldCheck size={64} className="text-emerald-500" /> :
+                isNotStarted ? <Clock size={64} className="text-blue-500 animate-pulse-soft" /> :
+                  <AlertOctagon size={64} className="text-[#8A1538]" />}
           </div>
           <h2 className="text-3xl font-extrabold text-slate-800 mb-2">Notice</h2>
           <p className="text-slate-500 font-bold max-w-sm text-lg leading-relaxed">
@@ -73,10 +265,23 @@ export const StudentLogin = () => {
     );
   }
 
+  // Priority Overlay System
+  if (isMultiTab) return <MultiTabOverlay />;
+  if (warning) return <ExamWarningOverlay message={warning} />;
+  if (isIdle) return <IdleOverlay />;
+
   return (
-    <div className="min-h-screen bg-dashboard-hub flex flex-col items-center justify-center p-4 selection:bg-[#8A1538] selection:text-white">
+    <div className="min-h-screen bg-dashboard-hub flex flex-col items-center justify-center p-4 selection:bg-[#8A1538] selection:text-white relative">
       <div className="w-full max-w-md animate-slide-up-fade">
-        <button onClick={() => navigate('/')} className="mb-6 flex items-center text-sm font-semibold text-slate-500 hover:text-[#8A1538]">
+        <button
+          onClick={() => {
+            if (document.fullscreenElement && document.exitFullscreen) {
+              document.exitFullscreen().catch(() => { });
+            }
+            navigate('/');
+          }}
+          className="mb-6 flex items-center text-sm font-semibold text-slate-500 hover:text-[#8A1538]"
+        >
           <ArrowLeft size={16} className="mr-2" /> Return to Portal
         </button>
         <div className="bg-white rounded-2xl shadow-2xl border border-slate-200/60 overflow-hidden relative">
@@ -123,6 +328,7 @@ export const StudentLogin = () => {
 // ==========================================
 export const StudentLayout = () => {
   const navigate = useNavigate();
+  const { warning, isMultiTab, isIdle } = useExamMode(true);
   const [electionStatus, setElectionStatus] = useState(null);
   const studentName = sessionStorage.getItem('studentName') || '';
   const studentDept = sessionStorage.getItem('studentDepartment') || '';
@@ -132,7 +338,7 @@ export const StudentLayout = () => {
     window.history.pushState(null, null, window.location.href);
     window.onpopstate = () => window.history.pushState(null, null, window.location.href);
     if (!sessionStorage.getItem('studentSessionToken')) navigate('/student/login', { replace: true });
-    
+
     // Fetch status to keep header updated
     const checkStatus = async () => {
       try {
@@ -146,17 +352,22 @@ export const StudentLayout = () => {
     return () => { window.onpopstate = null; clearInterval(interval); };
   }, [navigate]);
 
+  // Priority Overlay System
+  if (isMultiTab) return <MultiTabOverlay />;
+  if (warning) return <ExamWarningOverlay message={warning} />;
+  if (isIdle) return <IdleOverlay />;
+
   return (
-    <div className="min-h-screen bg-dashboard-hub flex flex-col select-none">
+    <div className="min-h-screen bg-dashboard-hub flex flex-col select-none relative">
       <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-8 z-20 shadow-sm relative">
         <div className="flex items-center py-2">
           <img src={logo} alt="Logo" className="h-12 w-auto object-contain" onError={(e) => e.target.style.display = 'none'} />
         </div>
         <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center whitespace-nowrap">
           <span className={`font-bold text-sm tracking-widest uppercase flex items-center ${electionStatus?.status === 'LIVE' ? 'text-emerald-600' : 'text-[#8A1538]'}`}>
-            {electionStatus?.status === 'LIVE' ? '"Official Voting" - Have Started' : 
-             electionStatus?.status === 'STOPPED' ? '"Official Voting" - Paused' :
-             '"Official Voting" - Pending'}
+            {electionStatus?.status === 'LIVE' ? '"Official Voting" - Have Started' :
+              electionStatus?.status === 'STOPPED' ? '"Official Voting" - Paused' :
+                '"Official Voting" - Pending'}
           </span>
         </div>
         <div className="flex items-center space-x-4">
@@ -189,6 +400,7 @@ export const VoteScreen = () => {
   const [selection, setSelection] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showConfirm, setShowConfirm] = useState(false);
   const navigate = useNavigate();
   const erpId = sessionStorage.getItem('studentSessionToken');
 
@@ -239,9 +451,7 @@ export const VoteScreen = () => {
 
   const handleNextClick = () => {
     if (currentIndex === 0) {
-      if (window.confirm("Reminder: Once you move to the next post, your choice for the current position will be finalized and cannot be changed. Proceed to the next ballot?")) {
-        handleVoteSubmit();
-      }
+      setShowConfirm(true);
     } else {
       handleVoteSubmit();
     }
@@ -253,6 +463,13 @@ export const VoteScreen = () => {
 
   return (
     <div className="w-full relative">
+      {showConfirm && (
+        <SecureConfirmModal 
+          message="Once you move to the next post, your choice for this position will be finalized and cannot be changed. Proceed?"
+          onConfirm={() => { setShowConfirm(false); handleVoteSubmit(); }}
+          onCancel={() => setShowConfirm(false)}
+        />
+      )}
       <div className="absolute -top-10 left-0 right-0 flex justify-center space-x-2">
         {posts.map((_, idx) => <div key={idx} className={`h-1.5 w-12 rounded-full transition-colors duration-500 ${idx < currentIndex ? 'bg-[#DDA73B]' : idx === currentIndex ? 'bg-[#8A1538]' : 'bg-slate-200'}`}></div>)}
       </div>
@@ -327,6 +544,7 @@ export const ReviewVotes = () => {
     try {
       setLoading(true);
       await api.post('/student/finish-voting', { erp_id: erpId });
+      sessionStorage.setItem('votingFinished', 'true');
       setFinished(true);
       setTimeout(() => { sessionStorage.clear(); navigate('/'); }, 5000);
     } catch (err) {
@@ -356,7 +574,7 @@ export const ReviewVotes = () => {
 
   return (
     <div className="max-w-3xl mx-auto mt-8">
-      <div className="rounded-3xl p-8 lg:p-12 border-t-8 border-[#8A1538] shadow-xl relative overflow-hidden" style={{background: 'rgba(255,255,255,0.75)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)'}}>
+      <div className="rounded-3xl p-8 lg:p-12 border-t-8 border-[#8A1538] shadow-xl relative overflow-hidden" style={{ background: 'rgba(255,255,255,0.75)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)' }}>
         <div className="absolute inset-0 bg-gradient-to-br from-[#8A1538]/5 via-transparent to-emerald-500/5 pointer-events-none"></div>
         <div className="absolute -top-20 -right-20 w-56 h-56 bg-[#8A1538]/5 rounded-full blur-3xl pointer-events-none"></div>
         <div className="absolute -bottom-16 -left-16 w-48 h-48 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none"></div>

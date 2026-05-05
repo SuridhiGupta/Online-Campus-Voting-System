@@ -8,6 +8,13 @@ const Landing = () => {
   const navigate = useNavigate();
   const role = React.useContext(DeviceRoleContext);
 
+  React.useEffect(() => {
+    // Ensure we exit fullscreen whenever we return to the portal selection landing page
+    if (document.fullscreenElement && document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    }
+  }, []);
+
   const portals = [
     {
       id: 'student',
@@ -94,7 +101,12 @@ const Landing = () => {
             {portals.map((portal) => (
               <button
                 key={portal.id}
-                onClick={() => navigate(portal.path)}
+                onClick={() => {
+                  if (portal.id === 'student' && document.documentElement.requestFullscreen) {
+                    document.documentElement.requestFullscreen().catch(() => {});
+                  }
+                  navigate(portal.path);
+                }}
                 className="group relative bg-white rounded-xl p-8 border border-slate-200 shadow-sm hover:shadow-lg hover:border-[#8A1538]/30 hover:-translate-y-[2px] transition-all duration-300 ease-in-out flex flex-col items-start focus:outline-none focus:ring-2 focus:ring-[#8A1538] focus:ring-offset-2 focus:ring-offset-[#f8f9fb] text-left"
               >
                 {/* Accent Top Border indicating portal type */}
