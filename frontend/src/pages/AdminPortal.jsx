@@ -83,13 +83,14 @@ export const AdminLayout = () => {
   const { showConfirm, showToast } = useNotification();
   const [isClearing, setIsClearing] = useState(false);
   const [resetSuccess, setResetSuccess] = useState(false);
+  const [showLockedNotice, setShowLockedNotice] = useState(false);
 
   useEffect(() => {
     if (!localStorage.getItem('token')) navigate('/admin/login');
     else {
       fetchStatus();
       fetchHeaderStats();
-      
+
       // Auto-refresh status every 5 seconds
       const poll = setInterval(fetchStatus, 5000);
       return () => clearInterval(poll);
@@ -114,10 +115,20 @@ export const AdminLayout = () => {
   };
 
   const handleClearSystem = () => {
+    if (electionStatus?.status === 'LIVE') {
+      setShowLockedNotice(true);
+      setTimeout(() => setShowLockedNotice(false), 3000);
+      return;
+    }
+
     showConfirm(
       "DEEP SYSTEM RESET",
-      <span>This will <strong>permanently erase ALL data</strong>: candidates, students, teachers, and voting records.<br/><br/><strong className="text-red-600">This action cannot be reversed.</strong></span>,
+      <span>This will <strong>permanently erase ALL data</strong>: candidates, students, teachers, and voting records.<br /><br /><strong className="text-red-600">This action cannot be reversed.</strong></span>,
       async (password) => {
+        if (electionStatus?.status === 'LIVE') {
+          showToast("System Reset Blocked: Election is currently LIVE.", 'error');
+          return;
+        }
         try {
           setIsClearing(true);
           const res = await api.post('/admin/system/clear-all', { password });
@@ -157,7 +168,7 @@ export const AdminLayout = () => {
         <div className="fixed inset-0 z-[99999] bg-white flex flex-col items-center justify-center overflow-hidden">
           {/* Animated scanning background */}
           <div className="absolute inset-0 pointer-events-none opacity-40 overflow-hidden">
-             <div className="h-[120%] -mt-[10%] w-[50%] bg-gradient-to-r from-transparent via-emerald-900 to-transparent" style={{ animation: 'scanBg 4s infinite linear' }}></div>
+            <div className="h-[120%] -mt-[10%] w-[50%] bg-gradient-to-r from-transparent via-emerald-900 to-transparent" style={{ animation: 'scanBg 4s infinite linear' }}></div>
           </div>
           <style>{`
             @keyframes scanBg {
@@ -165,7 +176,7 @@ export const AdminLayout = () => {
               100% { transform: translateX(150vw) skewX(-25deg); }
             }
           `}</style>
-          
+
           <div className="relative z-10 flex flex-col items-center animate-scale-in">
             <div className="h-20 w-20 rounded-full border-2 border-emerald-600/30 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(5,150,105,0.15)] bg-white">
               <CheckCircle size={40} className="text-emerald-600" />
@@ -173,7 +184,7 @@ export const AdminLayout = () => {
             <div className="text-[10px] font-black text-emerald-700 uppercase tracking-[0.3em] mb-2">System Status: Updated</div>
             <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight mb-4 text-center">Deep System Reset Successful</h1>
             <p className="text-sm font-bold text-slate-500 animate-pulse uppercase tracking-wider mb-6">Re-initializing environment...</p>
-            
+
             <div className="flex items-center space-x-3 bg-emerald-50/80 border border-emerald-100 rounded-full px-5 py-2.5 shadow-sm mt-2">
               <div className="relative flex h-2.5 w-2.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -196,25 +207,32 @@ export const AdminLayout = () => {
         </Link>
         <nav className="flex-grow p-4 space-y-1">
           {menuItems.map((item) => (
-            <button 
-              key={item.path} 
-              onClick={() => navigate(item.path)} 
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg font-medium transition-all duration-200 ${
-                location.pathname === item.path 
-                ? 'bg-[#8A1538] text-white shadow-lg shadow-[#8A1538]/20 border border-[#8A1538]' 
-                : 'text-slate-600 hover:bg-slate-50 border border-transparent hover:border-slate-200'
-              }`}
+            <button
+              key={item.path}
+              onClick={() => navigate(item.path)}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg font-medium transition-all duration-200 ${location.pathname === item.path
+                  ? 'bg-[#8A1538] text-white shadow-lg shadow-[#8A1538]/20 border border-[#8A1538]'
+                  : 'text-slate-600 hover:bg-slate-50 border border-transparent hover:border-slate-200'
+                }`}
             >
               {item.icon} <span className="text-[14px] font-semibold uppercase tracking-wide whitespace-nowrap">{item.label}</span>
             </button>
           ))}
         </nav>
-        
-        <div className="p-4 border-t border-slate-100 mt-auto">
-          <button 
+
+        <div className="p-4 border-t border-slate-100 mt-auto bg-red-50/20 relative">
+          {showLockedNotice && (
+            <div className="absolute -top-14 left-4 right-4 z-50 bg-red-600 rounded-lg shadow-xl animate-bounce flex items-center justify-center py-2 space-x-2">
+              <ShieldAlert size={14} className="text-white" />
+              <p className="text-[10px] font-black text-white uppercase tracking-wider whitespace-nowrap">
+                System Locked: Election is LIVE
+              </p>
+            </div>
+          )}
+          <button
             onClick={handleClearSystem}
             disabled={isClearing}
-            className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-bold text-red-600 hover:bg-red-50/80 border border-transparent hover:border-red-200 shadow-sm hover:shadow-md transition-all duration-300 group overflow-hidden relative"
+            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl font-bold text-red-600 hover:bg-red-50/80 border border-transparent hover:border-red-200 shadow-sm hover:shadow-md transition-all duration-300 group overflow-hidden relative ${electionStatus?.status === 'LIVE' ? 'opacity-50 grayscale hover:grayscale-0' : ''}`}
           >
             <div className={`p-2 rounded-lg bg-red-100 text-red-600 group-hover:bg-red-600 group-hover:text-white transition-all duration-300 ${isClearing ? 'bg-red-50' : 'group-hover:scale-110'}`}>
               {isClearing ? <RefreshCw size={18} className="animate-spin" /> : <Trash2 size={18} />}
@@ -395,29 +413,66 @@ export const ElectionControl = () => {
   const { showToast } = useNotification();
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
+  const [timeLeft, setTimeLeft] = useState('');
 
-  // Sync inputs with current data if NOT_STARTED or LIVE
+  // Countdown logic for LIVE elections
+  useEffect(() => {
+    if (electionStatus?.status !== 'LIVE' || !electionStatus?.end_time) {
+      setTimeLeft('');
+      return;
+    }
+
+    const calculate = () => {
+      const end = new Date(electionStatus.end_time);
+      const diff = end - new Date();
+      if (diff <= 0) return 'Ending...';
+
+      const h = Math.floor(diff / (1000 * 60 * 60));
+      const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const s = Math.floor((diff % (1000 * 60)) / 1000);
+
+      if (h > 0) return `${h}h ${m}m ${s}s remaining`;
+      return `${m}m ${s}s remaining`;
+    };
+
+    setTimeLeft(calculate());
+    const timer = setInterval(() => setTimeLeft(calculate()), 1000);
+    return () => clearInterval(timer);
+  }, [electionStatus]);
+
+  // Sync inputs with current data from server
   useEffect(() => {
     if (electionStatus?.start_time && electionStatus?.end_time) {
-      // Convert to local datetime-local format
       const start = new Date(electionStatus.start_time);
       const end = new Date(electionStatus.end_time);
-      
+
       const format = (d) => {
         const pad = (n) => n.toString().padStart(2, '0');
-        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
       };
-      
-      setStartTime(format(start));
-      setEndTime(format(end));
+
+      const formattedStart = format(start);
+      const formattedEnd = format(end);
+
+      // Only update if current inputs are empty to avoid interrupting user typing
+      // OR if the status is LIVE/ENDED to ensure the set times are visible
+      if (!startTime || !endTime || electionStatus.status === 'LIVE' || electionStatus.status === 'ENDED') {
+        // Only set if different to avoid infinite re-renders
+        if (startTime !== formattedStart) setStartTime(formattedStart);
+        if (endTime !== formattedEnd) setEndTime(formattedEnd);
+      }
+    } else if (electionStatus?.status === 'NOT_STARTED' && !electionStatus?.start_time) {
+      // Clear inputs only if the server explicitly has no schedule
+      setStartTime('');
+      setEndTime('');
     }
-  }, [electionStatus]);
+  }, [electionStatus]); // Runs whenever status updates from server
 
   // Helper to sync with "NOW" for Start Now button
   const setStartToNow = () => {
     const d = new Date();
     const pad = (n) => n.toString().padStart(2, '0');
-    setStartTime(`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
+    setStartTime(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
   };
 
   const handleSetSchedule = async (e) => {
@@ -427,10 +482,10 @@ export const ElectionControl = () => {
       await api.post('/admin/election/set-time', { start_time: startTime, end_time: endTime });
       await fetchStatus();
       showToast('Election schedule activated successfully.', 'success');
-    } catch (err) { 
-      showToast(err.response?.data?.error || 'Failed to update schedule', 'error'); 
-    } finally { 
-      setLoading(false); 
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Failed to update schedule', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -441,31 +496,31 @@ export const ElectionControl = () => {
       await api.post('/admin/election/stop');
       await fetchStatus();
       showToast('Election paused successfully.', 'success');
-    } catch (err) { 
+    } catch (err) {
       showToast('Failed to pause election', 'error');
-    } finally { 
-      setLoading(false); 
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleReset = async () => {
     if (!window.confirm("CRITICAL WARNING: This will ERASE ALL VOTES and clear the schedule. Continue?")) return;
-    try { 
-      setLoading(true); 
-      await api.post('/admin/election/reset'); 
-      await fetchStatus(); 
+    try {
+      setLoading(true);
+      await api.post('/admin/election/reset');
+      await fetchStatus();
       setStartTime('');
       setEndTime('');
-      showToast('System reset complete.', 'success'); 
-    } catch (err) { 
+      showToast('System reset complete.', 'success');
+    } catch (err) {
       showToast('Reset failed', 'error');
-    } finally { 
-      setLoading(false); 
+    } finally {
+      setLoading(false);
     }
   };
 
   const isLive = electionStatus?.status === 'LIVE';
-  const isStopped = electionStatus?.status === 'STOPPED';
+  const isStopped = electionStatus?.status === 'NOT_SET';
 
   return (
     <div className="max-w-5xl space-y-6 mx-auto pb-10">
@@ -480,39 +535,43 @@ export const ElectionControl = () => {
         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-premium flex flex-col">
           <div className="p-6 border-b border-slate-100 flex justify-between items-center">
             <span className="font-bold text-slate-700 text-lg">Network State</span>
-            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${isLive ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{electionStatus?.status || 'OFFLINE'}</span>
+            <div className="flex items-center space-x-3">
+              <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${isLive ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                {isLive ? `LIVE : ${timeLeft || 'Active'}` : (electionStatus?.status === 'STOPPED' ? 'NOT_SET' : (electionStatus?.status || 'OFFLINE'))}
+              </span>
+            </div>
           </div>
-          
+
           <div className="p-6 flex-1 flex flex-col">
             <form onSubmit={handleSetSchedule} className="space-y-6">
               <div className="grid grid-cols-1 gap-4">
                 <div className="space-y-2">
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Start Time</label>
-                  <input 
-                    type="datetime-local" 
-                    value={startTime} 
+                  <input
+                    type="datetime-local"
+                    value={startTime}
                     onChange={e => setStartTime(e.target.value)}
                     required
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm font-bold outline-none focus:ring-2 focus:ring-[#8A1538]/10" 
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm font-bold outline-none focus:ring-2 focus:ring-[#8A1538]/10"
                   />
                 </div>
                 <div className="space-y-2">
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">End Time</label>
-                  <input 
-                    type="datetime-local" 
-                    value={endTime} 
+                  <input
+                    type="datetime-local"
+                    value={endTime}
                     onChange={e => setEndTime(e.target.value)}
                     required
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm font-bold outline-none focus:ring-2 focus:ring-[#8A1538]/10" 
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm font-bold outline-none focus:ring-2 focus:ring-[#8A1538]/10"
                   />
                 </div>
               </div>
-              
+
               <div className="flex flex-col gap-3 pt-2">
                 <div className="flex gap-3">
                   {electionStatus?.status !== 'LIVE' && (
-                    <button 
-                      type="submit" 
+                    <button
+                      type="submit"
                       onClick={() => {
                         if (electionStatus?.status === 'NOT_STARTED') setStartToNow();
                       }}
@@ -521,15 +580,15 @@ export const ElectionControl = () => {
                     >
                       {loading ? <RefreshCw className="animate-spin" size={20} /> : <PlayCircle size={20} />}
                       <span>
-                        {electionStatus?.status === 'ENDED' ? 'RESTART ELECTION' : 
-                         electionStatus?.status === 'NOT_STARTED' ? 'START NOW' : 
-                         'START ELECTION'}
+                        {electionStatus?.status === 'ENDED' ? 'RESTART ELECTION' :
+                          electionStatus?.status === 'NOT_STARTED' ? 'START NOW' :
+                            'START ELECTION'}
                       </span>
                     </button>
                   )}
 
                   {(electionStatus?.status === 'LIVE' || electionStatus?.status === 'NOT_STARTED') && (
-                    <button 
+                    <button
                       type="button"
                       onClick={handleStop}
                       disabled={loading}
@@ -544,10 +603,10 @@ export const ElectionControl = () => {
             </form>
             <p className="text-xs text-slate-400 mt-6 text-center font-medium leading-relaxed">
               {electionStatus?.status === 'NOT_STARTED' ? "Voting is scheduled but not started yet." :
-               electionStatus?.status === 'LIVE' ? "Voting is currently active." :
-               electionStatus?.status === 'STOPPED' ? "Voting is temporarily paused." :
-               electionStatus?.status === 'ENDED' ? "Voting has ended." :
-               "No election scheduled."}
+                electionStatus?.status === 'LIVE' ? "Voting is currently active." :
+                  electionStatus?.status === 'STOPPED' ? "Status: NOT_SET (Voting is currently paused or not initialized)." :
+                    electionStatus?.status === 'ENDED' ? "Voting has ended." :
+                      "No election scheduled."}
             </p>
           </div>
         </div>
@@ -563,10 +622,10 @@ export const ElectionControl = () => {
               Permanently erase all current election data and reset the system for a new vote. Use this only if you are starting a new election session.
             </p>
             <div className="space-y-4">
-              <button 
-                 disabled={loading || isLive} 
-                 onClick={handleReset} 
-                 className="w-full flex items-center justify-center space-x-2 py-4 rounded-xl border-2 border-red-500 text-red-600 font-bold hover:bg-red-50 transition-colors disabled:opacity-40 disabled:border-slate-200 disabled:text-slate-400"
+              <button
+                disabled={loading || isLive}
+                onClick={handleReset}
+                className="w-full flex items-center justify-center space-x-2 py-4 rounded-xl border-2 border-red-500 text-red-600 font-bold hover:bg-red-50 transition-colors disabled:opacity-40 disabled:border-slate-200 disabled:text-slate-400"
               >
                 <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
                 <span>Format Election Registry</span>
@@ -969,7 +1028,7 @@ export const ManageStudents = () => {
       setCsvFile(null);
       fetchDatasets();
       if (fetchHeaderStats) fetchHeaderStats();
-      
+
       // Clear message after 3 seconds
       setTimeout(() => {
         setUploadStatus('idle');
@@ -978,7 +1037,7 @@ export const ManageStudents = () => {
     } catch (err) {
       setUploadStatus('error');
       setMessage(err.response?.data?.error || "Import failed. Check CSV format.");
-      
+
       // Clear error message after 5 seconds
       setTimeout(() => {
         setUploadStatus('idle');
@@ -1369,10 +1428,10 @@ export const TeacherManagement = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Username</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={createForm.username}
-                    onChange={e => setCreateForm({...createForm, username: e.target.value})}
+                    onChange={e => setCreateForm({ ...createForm, username: e.target.value })}
                     placeholder="Enter teacher username"
                     className="w-full border border-slate-300 p-2.5 rounded-md outline-none focus:ring-2 focus:ring-[#8A1538]/20 focus:border-[#8A1538] text-sm transition-all"
                     required
@@ -1380,10 +1439,10 @@ export const TeacherManagement = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Password</label>
-                  <input 
-                    type="password" 
+                  <input
+                    type="password"
                     value={createForm.password}
-                    onChange={e => setCreateForm({...createForm, password: e.target.value})}
+                    onChange={e => setCreateForm({ ...createForm, password: e.target.value })}
                     placeholder="Set manual password"
                     className="w-full border border-slate-300 p-2.5 rounded-md outline-none focus:ring-2 focus:ring-[#8A1538]/20 focus:border-[#8A1538] text-sm transition-all"
                     required
@@ -1391,8 +1450,8 @@ export const TeacherManagement = () => {
                 </div>
               </div>
               <div className="flex justify-center">
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   disabled={isCreating}
                   className="w-full max-w-sm bg-slate-800 hover:bg-slate-900 text-white font-bold py-4 rounded-xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center space-x-3 uppercase tracking-widest text-xs"
                 >
@@ -1414,10 +1473,10 @@ export const TeacherManagement = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Select Teacher</label>
-                  <select 
-                    value={assignForm.teacher_id} 
-                    onChange={e => setAssignForm({...assignForm, teacher_id: e.target.value})}
-                    className="w-full border border-slate-300 p-2.5 rounded-md outline-none focus:ring-2 focus:ring-[#8A1538]/20 focus:border-[#8A1538] text-sm transition-all" 
+                  <select
+                    value={assignForm.teacher_id}
+                    onChange={e => setAssignForm({ ...assignForm, teacher_id: e.target.value })}
+                    className="w-full border border-slate-300 p-2.5 rounded-md outline-none focus:ring-2 focus:ring-[#8A1538]/20 focus:border-[#8A1538] text-sm transition-all"
                     required
                   >
                     <option value="" disabled hidden>Select Teacher...</option>
@@ -1428,10 +1487,10 @@ export const TeacherManagement = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Department</label>
-                  <select 
-                    value={assignForm.department} 
-                    onChange={e => setAssignForm({...assignForm, department: e.target.value})}
-                    className="w-full border border-slate-300 p-2.5 rounded-md outline-none focus:ring-2 focus:ring-[#8A1538]/20 focus:border-[#8A1538] text-sm transition-all" 
+                  <select
+                    value={assignForm.department}
+                    onChange={e => setAssignForm({ ...assignForm, department: e.target.value })}
+                    className="w-full border border-slate-300 p-2.5 rounded-md outline-none focus:ring-2 focus:ring-[#8A1538]/20 focus:border-[#8A1538] text-sm transition-all"
                     required
                   >
                     <option value="" disabled hidden>Select Department...</option>
@@ -1442,9 +1501,9 @@ export const TeacherManagement = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Year</label>
-                  <select 
-                    value={assignForm.year} 
-                    onChange={e => setAssignForm({...assignForm, year: e.target.value})}
+                  <select
+                    value={assignForm.year}
+                    onChange={e => setAssignForm({ ...assignForm, year: e.target.value })}
                     disabled={!assignForm.department}
                     className={`w-full border border-slate-300 p-2.5 rounded-md outline-none focus:ring-2 focus:ring-[#8A1538]/20 focus:border-[#8A1538] text-sm transition-all ${!assignForm.department ? 'bg-slate-50 opacity-50 cursor-not-allowed' : ''}`}
                     required
@@ -1457,8 +1516,8 @@ export const TeacherManagement = () => {
                 </div>
               </div>
               <div className="flex justify-center pt-2">
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   disabled={isAssigning}
                   className="w-full max-w-sm bg-[#8A1538] hover:bg-[#6D0F2A] text-white font-black py-4 rounded-xl shadow-lg shadow-[#8A1538]/20 transition-all duration-300 active:scale-[0.98] flex items-center justify-center space-x-3 uppercase tracking-widest text-xs"
                 >
@@ -1496,7 +1555,7 @@ export const TeacherManagement = () => {
                       <div className="h-10 w-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-[#8A1538] font-black text-sm shadow-sm group-hover:bg-[#8A1538] group-hover:text-white group-hover:border-[#8A1538] transition-all">
                         {asgn.teacher_name?.charAt(0).toUpperCase()}
                       </div>
-                      <button 
+                      <button
                         onClick={() => handleDeleteTeacher(asgn.teacher_id)}
                         className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                         title="Delete Teacher Account"
@@ -1580,7 +1639,7 @@ export const ManageDevices = () => {
 
   const handleRemove = async (id) => {
     if (!window.confirm("Are you sure you want to revoke access for this device? It will be disconnected immediately.")) return;
-    
+
     try {
       await api.delete(`/admin/devices/${id}`);
       showToast('Device access revoked', 'success');
@@ -1637,9 +1696,8 @@ export const ManageDevices = () => {
                     {device.device_name}
                   </td>
                   <td className="p-6">
-                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                      device.role === 'admin' ? 'bg-[#8A1538] text-white' : 'bg-blue-600 text-white'
-                    }`}>
+                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${device.role === 'admin' ? 'bg-[#8A1538] text-white' : 'bg-blue-600 text-white'
+                      }`}>
                       {device.role}
                     </span>
                   </td>
@@ -1658,14 +1716,14 @@ export const ManageDevices = () => {
                     <div className="flex justify-end items-center space-x-2">
                       {!device.is_approved ? (
                         <>
-                          <button 
-                            onClick={() => handleApprove(device.fingerprint, 'student')} 
+                          <button
+                            onClick={() => handleApprove(device.fingerprint, 'student')}
                             className="bg-slate-900 text-white px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-black transition-all active:scale-95"
                           >
                             Approve Student
                           </button>
-                          <button 
-                            onClick={() => handleApprove(device.fingerprint, 'admin')} 
+                          <button
+                            onClick={() => handleApprove(device.fingerprint, 'admin')}
                             className="bg-[#8A1538] text-white px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-[#6D0F2A] transition-all active:scale-95"
                           >
                             Approve Admin
@@ -1674,9 +1732,9 @@ export const ManageDevices = () => {
                       ) : (
                         <span className="text-slate-300 text-[10px] font-black uppercase tracking-widest italic pr-4">Encrypted Connection</span>
                       )}
-                      
+
                       {device.role !== 'admin' && (
-                        <button 
+                        <button
                           onClick={() => handleRemove(device.fingerprint)}
                           className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                           title="Revoke Access"
@@ -1692,7 +1750,7 @@ export const ManageDevices = () => {
           </tbody>
         </table>
       </div>
-      
+
       <div className="bg-amber-50 border border-amber-100 rounded-2xl p-6 flex items-start space-x-4">
         <ShieldAlert className="text-amber-500 mt-1" size={20} />
         <div>
