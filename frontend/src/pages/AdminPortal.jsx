@@ -1603,7 +1603,7 @@ export const TeacherManagement = () => {
 };
 
 // ==========================================
-// 9. HARDWARE ACCESS CONTROL
+// 9. HARDWARE ACCESS CONTROL : DOCKING SYSTEM
 // ==========================================
 export const ManageDevices = () => {
   const [devices, setDevices] = useState([]);
