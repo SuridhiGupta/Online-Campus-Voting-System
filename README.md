@@ -2,7 +2,7 @@
 
 Most college voting systems are simple forms wrapped in a basic login screen. They are vulnerable to link-sharing, voting from dorm rooms, and unauthorized access. 
 
-This project was built to solve a specific problem: **How do we run a 100% secure, transparent, and strictly controlled digital election inside a physical college campus?**
+This project was built to solve a specific problem: **How do we run a secure, transparent, and strictly controlled digital election inside a physical college campus?**
 
 The answer is the **Institutional Security Grid**—a robust, LAN-based architecture that introduces hardware-level access controls, completely separating the Master Server from the Student Terminals.
 
